@@ -30,6 +30,15 @@ class Contents<T> internal constructor(
 
     override fun hashCode(): Int =
         iterable.hashCode()
+
+    override fun toString(): String =
+        joinToString(
+            separator = ", ",
+            prefix = "[",
+            postfix = "]"
+        ) {
+            it.toString()
+        }
 }
 
 val <T> Iterable<T>.contents get() =

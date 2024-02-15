@@ -1,29 +1,83 @@
 package me.alex_s168.kollektions
 
 open class RangeMap {
-    private val entries = mutableMapOf<Int, IntRange>()
+    private val entries = mutableListOf<Pair<Int, IntRange>>()
 
     fun map(id: Int, range: IntRange) {
-        entries[id] = range
+        entries.add(id to range)
     }
 
-    fun unmap(id: Int) {
-        entries.remove(id)
+    fun get(id: Int): Iterable<IntRange> {
+        val out = mutableListOf<IntRange>()
+        for (x in entries) {
+            if (x.first == id)
+                out.add(x.second)
+        }
+        return out
     }
 
-    fun remap(id: Int, transform: (IntRange) -> IntRange) =
-        map(id, transform(entries[id]!!))
+    fun unmap(id: Int): Iterable<IntRange> {
+        val out = mutableListOf<IntRange>()
+        val it = entries.listIterator()
+        while (it.hasNext()) {
+            val x = it.next()
+            if (x.first == id) {
+                out.add(x.second)
+                it.remove()
+            }
+        }
+        return out
+    }
 
-    fun remapAll(transform: (IntRange) -> IntRange) =
-        entries.keys.forEach { remap(it, transform) }
+    fun remap(id: Int, transform: (IntRange) -> IntRange) {
+        val old = unmap(id)
+        old.forEach {
+            map(id, transform(it))
+        }
+    }
+
+    val all get() = entries.toList()
+
+    fun decrementIDAllAfter(id: Int) {
+        val it = entries.listIterator()
+        while (it.hasNext()) {
+            val x = it.next()
+            if (x.first > id) {
+                it.set(x.first - 1 to x.second)
+            }
+        }
+    }
+
+    inline fun mapAdditional(id: Int, vararg ranges: IntRange) {
+        ranges.forEach {
+            map(id, it)
+        }
+    }
+
+    fun remapAll(transform: (Int, IntRange) -> IntRange) {
+        val iter = entries.listIterator()
+        while (iter.hasNext()) {
+            val x = iter.next()
+            iter.set(x.first to transform(x.first, x.second))
+        }
+    }
+
+    fun changeID(old: Int, new: Int) {
+        val iter = entries.listIterator()
+        while (iter.hasNext()) {
+            val x = iter.next()
+            if (x.first == old)
+                iter.set(new to x.second)
+        }
+    }
 
     fun getEmpty(): Sequence<Int> {
         val iter = entries.iterator()
         return sequence {
             if (iter.hasNext()) {
                 val x = iter.next()
-                if (x.value.isEmpty())
-                    yield(x.key)
+                if (x.second.isEmpty())
+                    yield(x.first)
             }
         }
     }
@@ -44,4 +98,9 @@ open class RangeMap {
         }
         return null
     }
+
+    override fun toString(): String =
+        entries.joinToString(prefix = "[", postfix = "]") { (k, v) ->
+            "id $k: $v"
+        }
 }

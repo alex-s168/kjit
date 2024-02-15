@@ -1,5 +1,7 @@
 package me.alex_s168.kollektions
 
+import kotlin.math.max
+
 /**
  * A DoubleLinkedList of any other list type.
  */
@@ -46,7 +48,7 @@ class MultiList<T>(
     // TODO: make it consider split the "old" list of in between the indexes if the new list is much bigger than the old one (reduced mem copy)
     override fun addAll(index: Int, elements: Collection<T>): Boolean {
         if (index <= 0) {
-            ranges.remapAll {
+            ranges.remapAll { id, it ->
                 (it.first + elements.size)..(it.last + elements.size)
             }
             val elem = makeMutable(elements)
@@ -72,7 +74,7 @@ class MultiList<T>(
             .addAll(where.offset, elements)
 
         ranges.remap(where.id) {
-            (it.first + elements.size)..(it.last + elements.size)
+            (it.first)..(it.last + elements.size)
         }
 
         size += elements.size
@@ -85,9 +87,17 @@ class MultiList<T>(
     }
 
     override fun add(element: T): Boolean {
-        if (chunks.isEmpty() || chunks.lastOrNull()?.size?.let { it >= maxAutomaticLen } == true)
-            chunks.add(listProvider())
+        if (chunks.isEmpty() || chunks.lastOrNull()?.size?.let { it >= maxAutomaticLen } == true) {
+            if (chunks.size != nextId) throw IllegalStateException("SHOULD NOT HAPPEN (MuliList:add chunks.size != nextId)")
+            val li = listProvider()
+            chunks.add(li)
+            ranges.map(nextId, size..size)
+            nextId++
+            size++
+            return li.add(element)
+        }
         size++
+        ranges.remap(nextId - 1) { it.first..(it.last + 1) }
         return chunks.last().add(element)
     }
 
@@ -109,6 +119,7 @@ class MultiList<T>(
         object : MutableIterator<T> {
             val prov = this@MultiList.chunks.iterator()
             var curr: MutableIterator<T>? = null
+            var index = 0
 
             override fun hasNext(): Boolean {
                 while (curr == null) {
@@ -120,13 +131,13 @@ class MultiList<T>(
                     if (!curr!!.hasNext())
                         curr = null
                 }
-                return true
+                return curr!!.hasNext()
             }
 
             override fun next(): T {
                 if (!hasNext())
                     throw Exception("No next element")
-
+                index++
                 return curr!!.next()
             }
 
@@ -134,7 +145,7 @@ class MultiList<T>(
                 if (curr == null)
                     throw IllegalStateException()
 
-                curr!!.remove()
+                this@MultiList.removeAt(index - 1)
             }
         }
 
@@ -146,12 +157,52 @@ class MultiList<T>(
         TODO("Not yet implemented")
     }
 
-    override fun removeAt(index: Int): T =
-        transformed(index) { list, i ->
-            list.removeAt(i)
-        }.also {
-            size--
+    private fun swapChunks(a: Int, b: Int) {
+        val aList = chunks[a]
+        val bList = chunks[b]
+        chunks[b] = aList
+        chunks[a] = bList
+        ranges.changeID(a, -165)
+        ranges.changeID(b, a)
+        ranges.changeID(-165, b)
+    }
+
+    override fun removeAt(index: Int): T {
+        val where = ranges.resolve(index)
+            ?: throw IndexOutOfBoundsException()
+
+        val list = chunks[where.id]
+
+        val emptyIDs = mutableSetOf<Int>()
+        ranges.remapAll { id, it ->
+            val new = if (id > where.id)
+                (it.first-1)..(it.last-1)
+            else if (id == where.id)
+                (it.first)..(it.last - 1)
+            else
+                it
+
+            if (new.first == 0 && new.last == -1) {
+                emptyIDs.add(id)
+            }
+
+            new
         }
+
+        size --
+
+        var rev = nextId - 1
+        emptyIDs.sortedDescending().forEach { id ->
+            swapChunks(id, rev)
+            rev --
+        }
+        // rev is now the new size without empty chunks
+        repeat(nextId - 1) {}
+
+        nextId = rev
+
+        return list.removeAt(where.offset)
+    }
 
     override fun subList(fromIndex: Int, toIndex: Int): MutableList<T> {
         TODO("Not yet implemented")
@@ -184,15 +235,13 @@ class MultiList<T>(
     }
 
     override fun remove(element: T): Boolean {
-        val it = iterator()
-        while (it.hasNext()) {
-            if (it.next() == element) {
-                it.remove()
-                return true
-            }
-        }
+        val i = indexOf(element)
+        if (i == -1)
+            return false
 
-        return false
+        removeAt(i)
+
+        return true
     }
 
     override fun lastIndexOf(element: T): Int {
@@ -201,33 +250,30 @@ class MultiList<T>(
             val x = this[index]
             if (x == element)
                 return index
-            index --
+            index--
         }
-        return - 1
+        return -1
     }
 
     override fun indexOf(element: T): Int {
-        var index = 0
-        while (index < size) {
-            val x = this[index]
-            if (x == element)
-                return index
-            index ++
+        chunks.forEachIndexed { index, chunk ->
+            val i = chunk.indexOf(element)
+            if (i != -1)
+                return ranges.get(index).first().first + i
         }
         return -1
     }
 
     override fun containsAll(elements: Collection<T>): Boolean =
-        all { contains(it) }
+        elements.all { indexOf(it) != -1 }
 
-    override fun contains(element: T): Boolean {
-        var index = 0
-        while (index < size) {
-            val x = this[index]
-            if (x == element)
-                return true
-            index ++
-        }
-        return false
+    override fun contains(element: T): Boolean =
+        indexOf(element) != -1
+
+    fun debug() {
+        println("MultiList debug:")
+        println(" contents: $contents")
+        println(" index map: $ranges")
+        println(" chunks: ${chunks.contents}")
     }
 }
