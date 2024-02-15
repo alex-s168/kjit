@@ -1,6 +1,7 @@
 package me.alex_s168.kallok
 
 import kotlinx.cinterop.*
+import me.alex_s168.kollektions.SortedArrayList
 import kotlin.math.ceil
 
 /**
@@ -9,7 +10,19 @@ import kotlin.math.ceil
  * It tries to re-use old unused allocated memory as good as it can.
  * It is however recommended to use multiple [BasicAllocator] for different sizes.
  * You could for example create a [BasicAllocator] for 8-byte variables and one for 32-byte variables.
- * This helps reducing memory usage over the runtime of your program.
+ * This helps with reducing memory usage over the runtime of your program.
+ *
+ * It is not recommended to free allocations made by this allocator because it uses a ArrayList internally to
+ * store the freed allocations.
+ * Instead, you should free the underlying allocation after you are done.
+ *
+ * When to use:
+ * - Allocating many similar sized allocations
+ * - Allocating many differently sized resources that all need to last around the same time
+ *   (then you can just free the underlying allocation to free all the small allocations)
+ *
+ * When not to use:
+ * - Allocating big continues allocations
  *
  * example:
  * ```
@@ -23,8 +36,8 @@ import kotlin.math.ceil
 class BasicAllocator(
     val allocation: Allocation
 ): Allocator {
-    // TODO: use sorted list instead
-    private val free = ArrayList<BAllocation>()
+    // TODO: use sorted linked list instead
+    private val free = SortedArrayList<BAllocation, Int> { it.size }
 
     private var next: Int = 0
 
@@ -37,7 +50,6 @@ class BasicAllocator(
     override fun alloc(size: Int): Allocation? {
         val existing = free.asSequence()
             .filter { it.size >= size }
-            .sortedBy { it.size }
             .firstOrNull()
 
         if (existing != null) {
