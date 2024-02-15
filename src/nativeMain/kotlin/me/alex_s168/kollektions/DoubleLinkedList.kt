@@ -2,6 +2,8 @@ package me.alex_s168.kollektions
 
 import kotlin.math.max
 
+// TODO: look at List<T>.last and cry
+
 class DoubleLinkedList<E>: MutableList<E>, MutableLinkedCollection<E> {
     private var parent: DoubleLinkedList<E>? = null
 
@@ -33,8 +35,13 @@ class DoubleLinkedList<E>: MutableList<E>, MutableLinkedCollection<E> {
         }
 
     override fun clear() {
+        // If this is a list view
+        start?.previous?.next = end?.next
+        end?.next?.previous = start?.previous
+
         start = null
         end = null
+        size = 0
     }
 
     private data class ToEntryResult<E>(
@@ -291,8 +298,14 @@ class DoubleLinkedList<E>: MutableList<E>, MutableLinkedCollection<E> {
         return removed
     }
 
-    override fun removeAll(elements: Collection<E>): Boolean =
-        any { remove(it) }
+    override fun removeAll(elements: Collection<E>): Boolean {
+        var rem = false
+        for (x in elements) {
+            if (remove(x))
+                rem = true
+        }
+        return rem
+    }
 
     override fun remove(element: E): Boolean {
         val entry = findElement(element)

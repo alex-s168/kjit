@@ -2,6 +2,7 @@ package me.alex_s168.kjit
 
 import platform.posix.system
 import kotlin.experimental.ExperimentalNativeApi
+import me.alex_s168.kollektions.flatten
 
 private var nasmPathOverr: String? = null
 

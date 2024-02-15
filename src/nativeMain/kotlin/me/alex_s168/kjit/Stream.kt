@@ -48,9 +48,6 @@ inline fun <T> Stream<Byte>.collect(dest: CPointer<ByteVar>, limit: UInt) =
 fun Stream<String>.flatCollect(dest: StringBuilder = StringBuilder()): StringBuilder =
     dest.also { forEach { dest.append(it) } }
 
-fun <T> Stream<Iterator<T>>.flatten(): Stream<T> =
-    FlatteningStream<T>(this)
-
 fun <T> stream(block: suspend SequenceScope<T>.() -> Unit): Stream<T> =
     iterator<T>(block)
 
